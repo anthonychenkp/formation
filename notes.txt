@@ -1,0 +1,134 @@
+Spark = moteur de traitement distribué différent de hadoop car ne stocke pas sur hdfs grâce aux rdd (fait tout en mémoire)
+
+stock unifié = car le code du core et du streaming est le même code (meme API) 
+               et car on peut utiliser des sources de données hétérogènes
+
+spark_local_ip
+
+Every SparkContext launches a web UI, by default on port 4040
+spark-master : 7077
+
+sparkShell/sparkContext 
+Driver = la machine sur lequel s'exécute le main
+Un sparkShell ne peut exécuter qu'en local, donc sur le driver
+le sparkContext est fourni par le sparkShell
+le driver ne fait pas parti du Cluster => aucune opération ne s'exécute sur le driver
+
+setMaster("local[*]") => * pour tous les coeurs
+
+map/flatMap
+
+rdd (=list) ("a b c","d e f")
+rdd.map(str => str.split(" ")) -> ((a,b,c),(d,e,f))
+rdd.flatMap …. -> (a,b,c,d,e,f)
+
+reduceByKey (sur une liste de tulle de 2 éléments dont le premier est forcément la clé) : regroupe par clé et applique la fonction passée en paramètre entre chaque valeur ayant la même clé
+
+spark-submit => soumettre du code spark au master d'un cluster. Permet de copier du code (un jar, …) sur tous les noeuds
+
+executor == worker == slave
+master = distribue la travail
+
+le master contient un fichier avec la liste des ip des worker. au lancement du cluster, le master démarre sur chaque slaves le worker/executor.
+
+RDD = collection distribuée
+
+lambda = function en paramètre
+
+
+rdd.map(ismatch) <=> rdd.map(x => this.isMatch(x))
+this doit être un objet sérializable car il doit être envoyé sur tous les noeuds
+Les case class sont sérializables et tous les tuples notamment
+ça plante si on utilise une méthode d'un objet non sérizlizable dans une lambda
+
+spark-submit : prend un jar et le déploie sur tous les noeuds du cluster
+
+On ne serialize pas du code, mais des data. Le code se trouve sur tous les noeuds
+object blabla extends NotSerializable = toutes les méthodes de l'objet sont statiques => on a pas besoin de sérializer, c'est du code
+topLevel = object
+
+x.f() = x.f.apply()
+
+
+Persist
+type : MEMORY_ONLY, DISK_ONLY, …, MEMORY_ONLY_2 = on stocke également les data sur un autre noeud au cas ou le noeud en cours plante, afin d'éviter de devoir recalculer le RDD
+DISK_ONLY_2 n'existe pas car c'est le boulot de hdfs de répliquer les données sur disque
+
+
+Question sur s3 : simple storage service
+
+shuffle
+
+partitionBy => Partition selon une clé et réparti ces clés sur tous les noeuds avant d'effectuer les traitements. On est sur que les données de la clé sont toujours sur le même noeud. Evite de devoir refaire un shuffle a chaque nouveau traitement car on sait déjà ou sont situées chaque clé et ses valeurs. Le reste des traitement peut se faire localement (en restant sur le même noeud)
+
+functions sujettent au shuffle
+- cogroup = "full outer join" et toutes les fonctions de rapprochement par clé (…ByKey)
+- partitionBy
+- sort
+- mapValues/flatmapValues
+- filter
+Question du type : quel est le bon algo ? (il faut se baser sur le shuffle)
+
+s3n:// (=> bonne réponse) : Permet de charger un fichier amazon
+hdfs://
+
+
+On lit, puis registerTempTable sur le RDD !!!!!
+
+ATTENTION SparkSQL
+
+Avant tout en sql. Je load, puis registerTempTable sur le RDD !
+
+SequenceFile : fichier format row
+Avro ou parquet = fichier orienté colonne
+
+TextFile => donne une rdd de string
+wholeTextFile => 
+
+les fichiers gzip ne sont pas splittable contrairement aux fichiers bzip2, ou lzo
+
+accumulateur => variable partagé en écriture (chaque noeud peut écrire et mettre à jour l'accumulateur) par contre seul le driver peut lire
+broadcast => 
+
+http://databricks.gitbooks.io/databricks-spark-knowledge-base/content/best_practices/README.html
+
+SPARK_LOCAL_IP => doit être paramétré à un hostname
+
+par défaut un coeur = une partition mais on peut définir plus de partitions qu'il n'y a de coeur
+
+Préférer le reduceByKey que le groupByKey
+
+spark (tous les workers sont lancés et la mémoire est alloué même si aucun traitement n'est lancé) vs mesos (allocation des ressource/lancement des workers/mémoire à la demande)
+
+s3n://
+
+
+toDebugString
+
+Job = Main (ce qu'on lance)
+Tasks
+phase/stage : les étapes de traitements
+
+stage = tout les traitements sur le même noeud
+dès qu'on a un shuffle on change de stage
+et au sein d'un stage, on a plusieurs tasks
+un shuffling implique une attente (synchro) de tous les noeuds
+
+dag = direct acyclic graph
+
+ATTENTION : en python, il faut faire 'context.inferSchema' du RDD (qui donne un dataFrame) avant le registerTempTable (sur le dataFrame). Pas en Scala ou Java
+
+En Java, il faut faire un 'createDataFrame' avant le registerTempTable. 
+
+En Scala, on fait directement le registerTempTable
+
+Un dataFrame = une collection de Row
+
+Spark streaming
+reduceByKeyAndWindow : toutes les 10s, on traite 30 secondes de données (= un lot)
+la fenêtre de traitement est de 3 lots
+
+checkpoint et updateStateByKey
+
+
+MLlib : Connaitre l'algorithme pageRank
